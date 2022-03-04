@@ -33,13 +33,13 @@ for i in tumor_to_normal:
     tumor_to_normal[i] = set(tumor_to_normal[i])
 
 ##gdc data portal metadata files for TCGA WXS bams.  multiple files because only 10k can be added to the cart at a time.
-with open(file_path / '/bams/first_part.json', 'r') as f:
+with open(file_path / 'bams' / 'first_part.json', 'r') as f:
     metadata = json.load(f)
 
-with open(file_path / '/bams/second_part.json', 'r') as f:
+with open(file_path / 'bams' / 'second_part.json', 'r') as f:
     metadata += json.load(f)
 
-with open(file_path / '/bams/third_part.json', 'r') as f:
+with open(file_path / 'bams' / 'third_part.json', 'r') as f:
     metadata += json.load(f)
 
 sample_to_id = {}

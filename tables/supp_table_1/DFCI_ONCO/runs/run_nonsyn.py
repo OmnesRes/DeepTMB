@@ -52,7 +52,6 @@ mask = Y < 40
 y_strat = y_strat[mask]
 X = np.log(X[mask, np.newaxis] + 1)
 Y = np.log(Y[mask, np.newaxis] + 1)
-##for evaluation runs use mask
 X_loader = utils.Map.PassThrough(X)
 Y_loader = utils.Map.PassThrough(Y)
 

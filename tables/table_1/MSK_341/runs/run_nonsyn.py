@@ -6,6 +6,7 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 import tensorflow as tf
 import tensorflow_probability as tfp
+from sklearn.preprocessing import OneHotEncoder
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -17,46 +18,36 @@ else:
     sys.path.append(str(cwd))
 
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-2], True)
-tf.config.experimental.set_visible_devices(physical_devices[-2], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
-pcawg_maf = pickle.load(open(path / 'files' / 'pcawg_maf_table.pkl', 'rb'))
-samples = pickle.load(open(path / 'files' / 'pcawg_sample_table.pkl', 'rb'))
-panels = pickle.load(open(path / 'files' / 'pcawg_panel_table.pkl', 'rb'))
+data = pickle.load(open(cwd / 'tables' / 'table_1' / 'MSK_341' / 'data' / 'data.pkl', 'rb'))
+##this table was limited to samples that had TMB less than 40
+nci_table = pd.read_csv(open(cwd / 'files' / 'NCI-T.tsv'), sep='\t').dropna()
+nci_dict = {i: j for i, j in zip(nci_table['Tumor_Sample_Barcode'].values, nci_table['NCI-T Label TMB'].values)}
 
-samples = samples.loc[samples['non_syn_counts'] > 0]
+result = data.copy()
+[result.pop(i) for i in data if i not in nci_dict]
 
-pcawg_maf = pcawg_maf.loc[pcawg_maf['VICC-01-R2'] > 0]
+values = [i for i in result.values() if i]
 non_syn = ['Missense_Mutation', 'Nonsense_Mutation', 'Frame_Shift_Del', 'Frame_Shift_Ins', 'In_Frame_Del', 'In_Frame_Ins', 'Nonstop_Mutation']
-panel_counts = pcawg_maf[['Tumor_Sample_Barcode', 'Variant_Classification']].groupby('Tumor_Sample_Barcode').apply(lambda x: pd.Series([(x['Variant_Classification'].isin(non_syn)).sum()], index=['panel_counts']))
-panel_counts.reset_index(inplace=True)
-samples = pd.merge(samples, panel_counts, how='inner', left_on='aliquot_id', right_on='Tumor_Sample_Barcode')
+non_syn_counts = [sum([i[4].to_dict()[j] for j in i[4].index if j in non_syn]) for i in values]
+X = np.array([i / (j[1] / 1e6) for i, j in zip(non_syn_counts, values)])
+Y = np.array([i[2] / (i[3] / 1e6) for i in values])
 
+nci = np.array([nci_dict[i] for i in result if result[i]])
 
+class_counts = dict(zip(*np.unique(nci, return_counts=True)))
 
-
-##histology embedding
-samples['cancer_code'] = samples['project_code'].apply(lambda x: x.split('-')[0])
-cancer_dict = {'LICA': 'liver', 'LINC': 'liver', 'LIRI': 'liver', 'BTCA': 'liver', 'BOCA': 'bone', 'BRCA': 'breast',
-               'CLLE': 'blood', 'CMDI': 'blood', 'LAML': 'blood', 'MALY': 'blood', 'EOPC': 'prostate', 'PRAD': 'prostate',
-               'OV': 'ovarian', 'MELA': 'skin', 'ESAD':'orogastric', 'ORCA': 'orogastric', 'GACA': 'orogastric',
-               'PBCA': 'brain', 'RECA': 'renal', 'PAEN': 'pancreas', 'PACA': 'pancreas'}
-
-samples['cancer'] = samples['cancer_code'].apply(lambda x: cancer_dict[x])
-A = samples['cancer'].astype('category')
-classes = A.cat.categories.values
-classes_onehot = np.eye(len(classes))[A.cat.codes]
-y_strat = np.argmax(classes_onehot, axis=-1)
-
-X = np.array([i / (panels.loc[panels['Panel'] == 'VICC-01-R2']['cds'].values[0] / 1e6) for i in samples['panel_counts'].values])
-Y = np.array([i / (panels.loc[panels['Panel'] == 'CDS']['cds'].values[0] / 1e6) for i in samples['non_syn_counts'].values])
-
-mask = Y < 40
-y_strat = y_strat[mask]
-X = np.log(X[mask, np.newaxis] + 1)
-Y = np.log(Y[mask, np.newaxis] + 1)
+mask = [class_counts[i] >= 50 for i in nci]
+nci = nci[mask]
+X = X[mask, np.newaxis]
+Y = Y[mask, np.newaxis]
 X_loader = utils.Map.PassThrough(X)
 Y_loader = utils.Map.PassThrough(Y)
+
+nci_onehot = OneHotEncoder().fit(nci[:, np.newaxis]).transform(nci[:, np.newaxis]).toarray()
+y_strat = np.argmax(nci_onehot, axis=-1)
 
 count_encoder = Encoders.Encoder(shape=(1,), layers=(64,))
 net = NN(encoders=[count_encoder.model], layers=(32, 16))
@@ -76,6 +67,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     ds_train = ds_train.shuffle(buffer_size=len(y_strat), reshuffle_each_iteration=True).repeat().batch(batch_size=int(len(idx_train) * .75), drop_remainder=True)
     ds_train = ds_train.map(lambda x: ((
                                         X_loader(x),
+
                                         ),
                                        (Y_loader(x),
                                         )
@@ -94,9 +86,11 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     pred = net.model.predict(ds_test)
     predictions.append(tfp.distributions.LogNormal(loc=pred[:, 0], scale=np.exp(pred[:, 1])).mean().numpy())
 
-with open(cwd / 'tables' / 'supp_table_1' / 'VICC_01_R2' / 'results' / 'run_nonsyn_predictions.pkl', 'wb') as f:
-    pickle.dump([predictions, test_idx, [X, Y]], f)
+with open(cwd / 'tables' / 'table_1' / 'MSK_341' / 'results' / 'run_nonsyn_predictions.pkl', 'wb') as f:
+    pickle.dump([predictions, test_idx, values], f)
 
 ##check each fold trained
 for fold, preds in zip(test_idx, predictions):
     print(np.mean((preds - Y[fold][:, 0]) ** 2))
+
+

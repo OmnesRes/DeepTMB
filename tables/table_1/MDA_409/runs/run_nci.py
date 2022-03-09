@@ -30,7 +30,7 @@ result = data.copy()
 [result.pop(i) for i in data if i not in nci_dict]
 
 values = [i for i in result.values() if i]
-X = np.array([i[0] / (i[1] / 1e6) for i in values])
+X = np.array([(i[0] - i[4]) / (i[1] / 1e6) for i in values])
 Y = np.array([i[2] / (i[3] / 1e6) for i in values])
 
 nci = np.array([nci_dict[i] for i in result if result[i]])

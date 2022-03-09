@@ -31,7 +31,7 @@ result = data.copy()
 
 values = [i for i in result.values() if i]
 non_syn = ['Missense_Mutation', 'Nonsense_Mutation', 'Frame_Shift_Del', 'Frame_Shift_Ins', 'In_Frame_Del', 'In_Frame_Ins', 'Nonstop_Mutation']
-non_syn_counts = [sum([i[4].to_dict()[j] for j in i[4].index if j in non_syn]) for i in values]
+non_syn_counts = [sum([i[5].to_dict()[j] for j in i[5].index if j in non_syn]) for i in values]
 X = np.array([i / (j[1] / 1e6) for i, j in zip(non_syn_counts, values)])
 Y = np.array([i[2] / (i[3] / 1e6) for i in values])
 

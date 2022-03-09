@@ -21,7 +21,8 @@ physical_devices = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[-1], True)
 tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
-data = pickle.load(open(cwd / 'tables' / 'table_1' / 'MSK_468' / 'data' / 'data.pkl', 'rb'))
+data = pickle.load(open(cwd / 'tables' / 'table_1' / 'DFCI_ONCO' / 'data' / 'data.pkl', 'rb'))
+
 ##this table was limited to samples that had TMB less than 40
 nci_table = pd.read_csv(open(cwd / 'files' / 'NCI-T.tsv'), sep='\t').dropna()
 nci_dict = {i: j for i, j in zip(nci_table['Tumor_Sample_Barcode'].values, nci_table['NCI-T Label TMB'].values)}
@@ -30,10 +31,8 @@ result = data.copy()
 [result.pop(i) for i in data if i not in nci_dict]
 
 values = [i for i in result.values() if i]
-non_syn = ['Missense_Mutation', 'Nonsense_Mutation', 'Frame_Shift_Del', 'Frame_Shift_Ins', 'In_Frame_Del', 'In_Frame_Ins', 'Nonstop_Mutation']
-non_syn_counts = [sum([i[5].to_dict()[j] for j in i[5].index if j in non_syn]) for i in values]
-X = np.array([i / (j[1] / 1e6) for i, j in zip(non_syn_counts, values)])
-Y = np.array([i[2] / (i[3] / 1e6) for i in values])
+X = np.array([(i[0] - i[4]) / (i[1] / 1e6) for i in values])
+Y = np.array([(i[2]) / (i[3] / 1e6) for i in values])
 
 nci = np.array([nci_dict[i] for i in result if result[i]])
 
@@ -67,7 +66,6 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     ds_train = ds_train.shuffle(buffer_size=len(y_strat), reshuffle_each_iteration=True).repeat().batch(batch_size=int(len(idx_train) * .75), drop_remainder=True)
     ds_train = ds_train.map(lambda x: ((
                                         X_loader(x),
-
                                         ),
                                        (Y_loader(x),
                                         )
@@ -86,7 +84,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     pred = net.model.predict(ds_test)
     predictions.append(tfp.distributions.LogNormal(loc=pred[:, 0], scale=np.exp(pred[:, 1])).mean().numpy())
 
-with open(cwd / 'tables' / 'table_1' / 'MSK_468' / 'results' / 'run_nonsyn_predictions.pkl', 'wb') as f:
+with open(cwd / 'tables' / 'table_1' / 'DFCI_ONCO' / 'results' / 'run_hotspots_syn_predictions.pkl', 'wb') as f:
     pickle.dump([predictions, test_idx, values], f)
 
 ##check each fold trained

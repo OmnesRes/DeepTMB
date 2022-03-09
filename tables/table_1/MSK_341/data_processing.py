@@ -71,17 +71,20 @@ gff_cds_pr = pr.PyRanges(gff.loc[(gff['gene_part'] == 'CDS') & gff['chr'].isin(c
 
 def get_overlap(tumor):
     tumor_df = tcga_maf.loc[tcga_maf['Tumor_Sample_Barcode'] == tumor]
-    ##remove dinucleotides
+    ##remove extra consecutive single base substitutions
     dfs = []
     for i in tumor_df['Chromosome'].unique():
         result = tumor_df.loc[(tumor_df['Chromosome'] == i) & (tumor_df['Variant_Type'] == 'SNP')].copy()
         if len(result) > 1:
-            result.sort_values(['Start_Position'], inplace=True)
             dfs.append(result[sum(result['Start_Position'].values - result['Start_Position'].values[:, np.newaxis] == 1) == 1])
     if dfs != []:
         to_remove = pd.concat(dfs)
         to_remove['remove'] = True
         tumor_df = pd.merge(tumor_df, to_remove, how='left')
+        ##assume dinucleotides are missense mutations
+        new_classification = tumor_df['Variant_Classification'].values
+        new_classification[tumor_df.index[tumor_df['remove'] == True] - 1] = 'Missense_Mutation'
+        tumor_df['Variant_Classification'] = new_classification
         tumor_df = tumor_df.loc[tumor_df['remove'] != True]
 
     counts = depths[tumor][-1]

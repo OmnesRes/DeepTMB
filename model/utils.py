@@ -82,8 +82,6 @@ class Map:
         def loader(self, idx):
             choice = np.random.choice(np.arange(self.data.shape[-1]))
             return self.data[idx, choice][:, np.newaxis]
-            # batch.append(np.random.choice(self.data[i]))
-            # return np.array(batch)[:, np.newaxis]
 
     class PassThrough(LoadBatch):
         def __init__(self, data):

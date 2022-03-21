@@ -70,7 +70,7 @@ gff = pd.read_csv(cwd / 'files' / 'Homo_sapiens.GRCh37.87.gff3',
 gff_cds_pr = pr.PyRanges(gff.loc[(gff['gene_part'] == 'CDS') & gff['chr'].isin(chromosomes), ['chr', 'start', 'end', 'gene_info']].astype({'start': int, 'end': int}).rename(columns={'chr': 'Chromosome', 'start': 'Start', 'end': 'End'})).merge()
 
 def get_overlap(tumor):
-    tumor_df = tcga_maf.loc[tcga_maf['Tumor_Sample_Barcode'] == tumor]
+    tumor_df = tcga_maf.loc[tcga_maf['Tumor_Sample_Barcode'] == tumor].sort_values(['Start_Position'])
     ##remove extra consecutive single base substitutions
     dfs = []
     for i in tumor_df['Chromosome'].unique():

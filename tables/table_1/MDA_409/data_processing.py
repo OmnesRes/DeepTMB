@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+
+file_path = 'files/'
 import pickle
 import concurrent.futures
 import pyranges as pr
@@ -8,23 +10,23 @@ import subprocess
 from tqdm import tqdm
 
 import pathlib
+
 path = pathlib.Path.cwd()
 if path.stem == 'DeepTMB':
     cwd = path
 else:
     cwd = list(path.parents)[::-1][path.parts.index('DeepTMB')]
     import sys
+
     sys.path.append(str(cwd))
 
 depths = pickle.load(open(cwd / 'files' / 'depths.pkl', 'rb'))
 
 hotspots = pd.read_csv(cwd / 'files' / 'hotspots.vcf', skiprows=1, sep='\t')
 
-##dinucleotides have already been removed
-hotspots['REF'] = hotspots['REF'].str[0]
-hotspots['ALT'] = hotspots['ALT'].str[0]
 hotspots = hotspots[['#CHROM', 'POS', 'REF', 'ALT']]
 hotspots.drop_duplicates(inplace=True)
+
 with open(cwd / 'files' / 'bams' / 'first_part.json', 'r') as f:
     metadata = json.load(f)
 
@@ -38,7 +40,8 @@ sample_to_id = {}
 for i in metadata:
     sample_to_id[i['associated_entities'][0]['entity_submitter_id']] = i['associated_entities'][0]['entity_id']
 
-cmd = ['ls', cwd / 'files' / 'coverage_beds' / 'broad/']
+cmd = ['ls', cwd / 'files' / 'beds']
+
 p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 files = [str(i, 'utf-8') for i in p.communicate()[0].split() if '.bed' in str(i)[-5:]]
 
@@ -55,38 +58,20 @@ for i in tumor_to_normal:
 
 chromosomes = list(map(lambda x: str(x), list(range(1, 23)) + ['X', 'Y']))
 
-##include in panel column
-##need to intersect coverage files with panel coordinates
 ##10.1 synapse https://www.synapse.org/#!Synapse:syn25895958
-genie = pd.read_csv(cwd / 'files' / 'genie' / 'genomic_information.txt', sep='\t', low_memory=False)
+genie = pd.read_csv(cwd / 'files' / 'genomic_information.txt', sep='\t', low_memory=False)
 panel_pr = pr.PyRanges(genie.loc[genie['SEQ_ASSAY_ID'] == 'MDA-409-V1'][['Chromosome', 'Start_Position', 'End_Position']].rename(columns={'Start_Position': 'Start', 'End_Position': 'End'}))
 
 non_syn = ['Missense_Mutation', 'Nonsense_Mutation', 'Frame_Shift_Del', 'Frame_Shift_Ins', 'In_Frame_Del', 'In_Frame_Ins', 'Nonstop_Mutation']
 gff = pd.read_csv(cwd / 'files' / 'Homo_sapiens.GRCh37.87.gff3',
                   sep='\t',
                   names=['chr', 'unknown', 'gene_part', 'start', 'end', 'unknown2', 'strand', 'unknown3', 'gene_info'],
-                  usecols=['chr','gene_part', 'start', 'end', 'gene_info'],
+                  usecols=['chr', 'gene_part', 'start', 'end', 'gene_info'],
                   low_memory=False)
 gff_cds_pr = pr.PyRanges(gff.loc[(gff['gene_part'] == 'CDS') & gff['chr'].isin(chromosomes), ['chr', 'start', 'end', 'gene_info']].astype({'start': int, 'end': int}).rename(columns={'chr': 'Chromosome', 'start': 'Start', 'end': 'End'})).merge()
 
 def get_overlap(tumor):
-    tumor_df = tcga_maf.loc[tcga_maf['Tumor_Sample_Barcode'] == tumor].sort_values(['Start_Position'])
-    ##remove extra consecutive single base substitutions
-    dfs = []
-    for i in tumor_df['Chromosome'].unique():
-        result = tumor_df.loc[(tumor_df['Chromosome'] == i) & (tumor_df['Variant_Type'] == 'SNP')].copy()
-        if len(result) > 1:
-            dfs.append(result[sum(result['Start_Position'].values - result['Start_Position'].values[:, np.newaxis] == 1) == 1])
-    if dfs != []:
-        to_remove = pd.concat(dfs)
-        to_remove['remove'] = True
-        tumor_df = pd.merge(tumor_df, to_remove, how='left')
-        ##assume dinucleotides are missense mutations
-        new_classification = tumor_df['Variant_Classification'].values
-        new_classification[tumor_df.index[tumor_df['remove'] == True] - 1] = 'Missense_Mutation'
-        tumor_df['Variant_Classification'] = new_classification
-        tumor_df = tumor_df.loc[tumor_df['remove'] != True]
-
+    tumor_df = tcga_maf.loc[tcga_maf['Tumor_Sample_Barcode'] == tumor]
     counts = depths[tumor][-1]
     if len(counts) == 0:
         return None
@@ -116,8 +101,8 @@ def get_overlap(tumor):
     types = result[result['bed_panel_cds'] > 0]['Variant_Classification'].value_counts()
     classes = result[result['bed_panel_cds'] > 0]['Variant_Type'].value_counts()
 
-    if len(result.loc[(result['Variant_Type'] == 'SNP') & (result['bed_panel_cds'] > 0)]) > 0:
-        panel_hotspots = len(pd.merge(result.loc[(result['Variant_Type'] == 'SNP') & (result['bed_panel_cds'] > 0)],
+    if len(result.loc[result['Variant_Type'].str.contains('NP') & (result['bed_panel_cds'] > 0)]) > 0:
+        panel_hotspots = len(pd.merge(result.loc[result['Variant_Type'].str.contains('NP') & (result['bed_panel_cds'] > 0)],
                                       hotspots,
                                       left_on=['Chromosome', 'Start', 'Reference_Allele', 'Tumor_Seq_Allele2'],
                                       right_on=['#CHROM', 'POS', 'REF', 'ALT'],
@@ -134,3 +119,4 @@ with concurrent.futures.ProcessPoolExecutor(max_workers=15) as executor:
 
 with open(cwd / 'tables' / 'table_1' / 'MDA_409' / 'data' / 'data.pkl', 'wb') as f:
     pickle.dump(data, f)
+

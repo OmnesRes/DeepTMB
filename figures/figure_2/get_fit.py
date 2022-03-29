@@ -2,7 +2,6 @@ import numpy as np
 from model.model import Encoders, NN, Losses
 from model import utils
 import pickle
-import pandas as pd
 import tensorflow as tf
 from sklearn.preprocessing import OneHotEncoder
 
@@ -21,6 +20,7 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 ##use MSK 468 data
 data = pickle.load(open(cwd / 'tables' / 'table_1' / 'MSK_468' / 'data' / 'data.pkl', 'rb'))
+sample_table = pickle.load(open(cwd / 'files' / 'tcga_public_sample_table.pkl', 'rb'))
 distributions = pickle.load(open(cwd / 'figures' / 'figure_2' / 'distributions.pkl', 'rb'))
 
 for i in list(data.keys()):
@@ -31,21 +31,19 @@ for i in list(data.keys()):
             data.pop(i)
 
 
-##this table was limited to samples that had TMB less than 40
-nci_table = pd.read_csv(open(cwd / 'files' / 'NCI-T.tsv'), sep='\t').dropna()
-nci_dict = {i: j for i, j in zip(nci_table['Tumor_Sample_Barcode'].values, nci_table['NCI-T Label TMB'].values)}
+nci_dict = {i: j for i, j in zip(sample_table['Tumor_Sample_Barcode'].values, sample_table['NCIt_tmb_label'].values) if j}
 
-result = data.copy()
-[result.pop(i) for i in data if i not in nci_dict]
-values = [i for i in result.values() if i]
+[data.pop(i) for i in list(data.keys()) if not data[i]]
+[data.pop(i) for i in list(data.keys()) if i not in nci_dict]
+
+values = [i for i in data.values() if (i[2] / (i[3] / 1e6)) <= 40]
+nci = np.array([nci_dict[i] for i in data if (data[i][2] / (data[i][3] / 1e6)) <= 40])
 
 X = np.array([i[0] / (i[1] / 1e6) for i in values])
 Y = np.array([i[2] / (i[3] / 1e6) for i in values])
 
-X_distributions = np.array([np.array(distributions[i][0]) / (result[i][1] / 1e6) for i in result if result[i]])
-Y_distributions = np.array([np.array(distributions[i][1]) / (result[i][3] / 1e6) for i in result if result[i]])
-
-nci = np.array([nci_dict[i] for i in result if result[i]])
+X_distributions = np.array([np.array(distributions[i][0]) / (data[i][1] / 1e6) for i in data if (data[i][2] / (data[i][3] / 1e6)) <= 40])
+Y_distributions = np.array([np.array(distributions[i][1]) / (data[i][3] / 1e6) for i in data if (data[i][2] / (data[i][3] / 1e6)) <= 40])
 
 class_counts = dict(zip(*np.unique(nci, return_counts=True)))
 mask = [class_counts[i] >= 50 for i in nci]
@@ -67,8 +65,6 @@ net.model.compile(loss=Losses.LogNormal(name='lognormal'),
 
 weights = net.model.get_weights()
 callbacks = [tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.0001, patience=30, mode='min', restore_best_weights=True)]
-
-
 
 ##unaugmented
 

@@ -2,7 +2,6 @@ import numpy as np
 from model.model import Encoders, NN, Losses
 from model import utils
 import pickle
-import pandas as pd
 import tensorflow as tf
 from sklearn.preprocessing import OneHotEncoder
 
@@ -19,20 +18,19 @@ physical_devices = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[-1], True)
 tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
-##use MSK 468 data
 data = pickle.load(open(cwd / 'tables' / 'table_1' / 'MSK_468' / 'data' / 'data.pkl', 'rb'))
-##this table was limited to samples that had TMB less than 40
-nci_table = pd.read_csv(open(cwd / 'files' / 'NCI-T.tsv'), sep='\t').dropna()
-nci_dict = {i: j for i, j in zip(nci_table['Tumor_Sample_Barcode'].values, nci_table['NCI-T Label TMB'].values)}
+sample_table = pickle.load(open(cwd / 'files' / 'tcga_public_sample_table.pkl', 'rb'))
 
-result = data.copy()
-[result.pop(i) for i in data if i not in nci_dict]
+nci_dict = {i: j for i, j in zip(sample_table['Tumor_Sample_Barcode'].values, sample_table['NCIt_tmb_label'].values) if j}
 
-values = [i for i in result.values() if i]
+[data.pop(i) for i in list(data.keys()) if not data[i]]
+[data.pop(i) for i in list(data.keys()) if i not in nci_dict]
+
+values = [i for i in data.values() if (i[2] / (i[3] / 1e6)) <= 40]
+nci = np.array([nci_dict[i] for i in data if (data[i][2] / (data[i][3] / 1e6)) <= 40])
+
 X = np.array([i[0] / (i[1] / 1e6) for i in values])
 Y = np.array([i[2] / (i[3] / 1e6) for i in values])
-
-nci = np.array([nci_dict[i] for i in result if result[i]])
 
 class_counts = dict(zip(*np.unique(nci, return_counts=True)))
 
@@ -78,6 +76,7 @@ net.model.fit(ds_train,
 x_pred = np.linspace(np.min(X), np.max(X), 200)
 y_pred = net.model.predict(x_pred)
 Y_pred = net.model.predict(X)
+
 
 with open(cwd / 'figures' / 'figure_1' / 'fit.pkl', 'wb') as f:
     pickle.dump([x_pred, y_pred, X, Y, Y_pred], f)

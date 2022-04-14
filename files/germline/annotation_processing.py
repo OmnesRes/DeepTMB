@@ -30,7 +30,7 @@ maf['bcr_patient_barcode'] = maf['SAMPLE'].apply(lambda x: x[:12])
 
 usecols = ['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']
 
-tcga_maf = pd.read_csv('/home/janaya2/Desktop/ATGC2/files/mc3.v0.2.8.PUBLIC.maf', sep='\t', usecols=usecols, low_memory=False).drop_duplicates()
+tcga_maf = pd.read_csv(file_path / 'mc3.v0.2.8.PUBLIC.maf', sep='\t', usecols=usecols, low_memory=False).drop_duplicates()
 
 tumor_to_normal = {}
 

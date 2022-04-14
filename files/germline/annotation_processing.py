@@ -30,7 +30,7 @@ maf['bcr_patient_barcode'] = maf['SAMPLE'].apply(lambda x: x[:12])
 
 usecols = ['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']
 
-tcga_maf = pd.read_csv(file_path / 'mc3.v0.2.8.PUBLIC.maf', sep='\t', usecols=usecols, low_memory=False)
+tcga_maf = pd.read_csv('/home/janaya2/Desktop/ATGC2/files/mc3.v0.2.8.PUBLIC.maf', sep='\t', usecols=usecols, low_memory=False).drop_duplicates()
 
 tumor_to_normal = {}
 
@@ -80,8 +80,8 @@ def get_overlap(tumor):
     if len(tumor_df) == 0:
         return None
     tumor_df['index'] = tumor_df.index.values
-    tumor_df['End_Position'] = tumor_df['POS'] + len(tumor_df['REF_ALLELE']) - 1
-    tumor_df.loc[tumor_df['ALT_ALLELE'].str.len() == 1 & (tumor_df['ALT_ALLELE'].str.len() > tumor_df['REF_ALLELE'].str.len()), ['End_Position']] = tumor_df['POS'] + 1
+    tumor_df['End_Position'] = tumor_df['POS'] + tumor_df['REF_ALLELE'].str.len() - 1
+    tumor_df.loc[(tumor_df['REF_ALLELE'].str.len() == 1) & (tumor_df['ALT_ALLELE'].str.len() > tumor_df['REF_ALLELE'].str.len()), ['End_Position']] = tumor_df['POS'] + 1
     tumor_pr = pr.PyRanges(tumor_df[['CHROM', 'POS', 'End_Position', 'index']].rename(columns={'CHROM': 'Chromosome', 'POS': 'Start', 'End_Position': 'End'}))
     grs = {'bed': bed_pr}
     result = pr.count_overlaps(grs, pr.concat({'maf': tumor_pr}.values()))
@@ -204,11 +204,9 @@ def get_overlap(tumor):
     return tumor_df
 
 data = {}
-with concurrent.futures.ProcessPoolExecutor(max_workers=15) as executor:
+with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
     for tumor, result in tqdm(zip(tumor_to_bed.keys(), executor.map(get_overlap, tumor_to_bed.keys()))):
         data[tumor] = result
-
-maf = pd.concat([data[i] for i in data if data[i] is not None], ignore_index=True)
 
 with open(file_path / 'germline' / 'data' / 'tumor_only_maf.pkl', 'wb') as f:
     pickle.dump(maf, f)

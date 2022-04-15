@@ -45,7 +45,6 @@ unmerged = pd.merge(unmerged, hotspots, how='left', left_on=['CHROM', 'POS', 'RE
 
 ##clinsig
 annot['PRIVATE'] = (annot['INFO/dbsnp_CLNSIG_benign'] != True) | (annot['INFO/dbsnp_CLNORIGIN_somatic'] == True)
-annot['PRIVATE'] = annot['INFO/dbsnp_CLNSIG_benign'] != True
 annot_dict = {i: j for i, j in zip(annot['ID'], annot['PRIVATE'].values)}
 merged_privates = []
 for i in merged.itertuples():

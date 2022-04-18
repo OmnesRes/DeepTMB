@@ -17,7 +17,7 @@ annot, starting_maf = pickle.load(open(file_path / 'germline' / 'data' / 'tcga.g
 del starting_maf
 
 maf = pickle.load(open(file_path / 'germline' / 'data' / 'tumor_only_maf.pkl', 'rb'))
-maf = maf[['LINEAGE', 'CHROM', 'POS', 'REF_ALLELE', 'ALT_ALLELE', 'ID']]
+maf = maf[['LINEAGE', 'CHROM', 'POS', 'REF_ALLELE', 'ALT_ALLELE', 'ID', 'bcr_patient_barcode']]
 t_s = sum(maf['LINEAGE'] == 'somatic') + sum(maf['LINEAGE'] == 'both')
 t_g = sum(maf['LINEAGE'] == 'germline') + sum(maf['LINEAGE'] == 'both')
 

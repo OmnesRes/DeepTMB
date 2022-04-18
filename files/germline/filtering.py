@@ -17,7 +17,7 @@ annot, starting_maf = pickle.load(open(file_path / 'germline' / 'data' / 'tcga.g
 del starting_maf
 
 maf = pickle.load(open(file_path / 'germline' / 'data' / 'tumor_only_maf.pkl', 'rb'))
-maf = maf[['LINEAGE', 'CHROM', 'POS', 'REF_ALLELE', 'ALT_ALLELE', 'ID', 'bcr_patient_barcode']]
+maf = maf[['LINEAGE', 'CHROM', 'POS', 'End_Position', 'REF_ALLELE', 'ALT_ALLELE', 'ID', 'bcr_patient_barcode']]
 t_s = sum(maf['LINEAGE'] == 'somatic') + sum(maf['LINEAGE'] == 'both')
 t_g = sum(maf['LINEAGE'] == 'germline') + sum(maf['LINEAGE'] == 'both')
 
@@ -150,10 +150,8 @@ for filters in ['loose', 'moderate', 'strict']:
     print((t_g - (len(unmerged.loc[(unmerged['LINEAGE'] == 'germline') & ((unmerged['PRIVATE'] & (unmerged['count'] <= popmax * 10000)) | (unmerged['hotspot'] == True))]) +\
         len(merged.loc[merged['LINEAGE'].isin(['germline', 'both']) & ((merged['PRIVATE'] & (merged['count'] <= popmax * 10000)) | (merged['hotspot'] == True))]))) / t_g)
 
-    unmerged['to_use'] = (unmerged['LINEAGE'] == 'somatic') & ((unmerged['PRIVATE'] & (unmerged['count'] <= popmax * 10000)) | (unmerged['hotspot'] == True))
-    merged['to_use'] = merged['LINEAGE'].isin(['somatic', 'both']) & ((merged['PRIVATE'] & (merged['count'] <= popmax * 10000) | (merged['hotspot'] == True)))
-    unmerged['to_use'] = unmerged['to_use'] | ((unmerged['LINEAGE'] == 'germline') & ((unmerged['PRIVATE'] & (unmerged['count'] <= popmax * 10000)) | (unmerged['hotspot'] == True)))
-    merged['to_use'] = merged['to_use'] | (merged['LINEAGE'].isin(['germline', 'both']) & ((merged['PRIVATE'] & (merged['count'] <= popmax * 10000)) | (merged['hotspot'] == True)))
+    unmerged['to_use'] = (unmerged['PRIVATE'] & (unmerged['count'] <= popmax * 10000)) | (unmerged['hotspot'] == True)
+    merged['to_use'] = (merged['PRIVATE'] & (merged['count'] <= popmax * 10000) | (merged['hotspot'] == True))
 
     final_df = pd.concat([unmerged.loc[unmerged['to_use'] == True], merged.loc[merged['to_use'] == True]], ignore_index=True)
     final_df.drop(labels=['count', 'Chromosome', 'Start_Position', 'Reference_Allele', 'Tumor_Seq_Allele2', 'PRIVATE', 'to_use'], inplace=True, axis=1)

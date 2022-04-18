@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-
-file_path = 'files/'
 import pickle
 import concurrent.futures
 import pyranges as pr
@@ -17,13 +15,10 @@ if path.stem == 'DeepTMB':
 else:
     cwd = list(path.parents)[::-1][path.parts.index('DeepTMB')]
     import sys
-
     sys.path.append(str(cwd))
 
 depths = pickle.load(open(cwd / 'files' / 'depths.pkl', 'rb'))
-
 hotspots = pd.read_csv(cwd / 'files' / 'hotspots.vcf', skiprows=1, sep='\t')
-
 hotspots = hotspots[['#CHROM', 'POS', 'REF', 'ALT']]
 hotspots.drop_duplicates(inplace=True)
 
@@ -46,7 +41,6 @@ p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 files = [str(i, 'utf-8') for i in p.communicate()[0].split() if '.bed' in str(i)[-5:]]
 
 tcga_maf = pickle.load(open(cwd / 'files' / 'tcga_public_maf.pkl', 'rb'))
-
 tumor_to_normal = tcga_maf[['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']].groupby('Tumor_Sample_Barcode')['Matched_Norm_Sample_Barcode'].apply(lambda x: set(x.values)).to_dict()
 
 tumor_to_bed = {}

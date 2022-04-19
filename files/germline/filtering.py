@@ -18,6 +18,9 @@ del starting_maf
 
 maf = pickle.load(open(file_path / 'germline' / 'data' / 'tumor_only_maf.pkl', 'rb'))
 maf = maf[['LINEAGE', 'CHROM', 'POS', 'End_Position', 'REF_ALLELE', 'ALT_ALLELE', 'ID', 'bcr_patient_barcode']]
+germline_samples = maf.loc[maf['LINEAGE'].isin(['germline', 'both'])]['bcr_patient_barcode'].value_counts().to_dict()
+with open(file_path / 'germline' / 'data' / 'germline_samples.pkl', 'wb') as f:
+    pickle.dump(germline_samples, f)
 t_s = sum(maf['LINEAGE'] == 'somatic') + sum(maf['LINEAGE'] == 'both')
 t_g = sum(maf['LINEAGE'] == 'germline') + sum(maf['LINEAGE'] == 'both')
 

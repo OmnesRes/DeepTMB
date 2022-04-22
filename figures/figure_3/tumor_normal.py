@@ -85,7 +85,6 @@ germline_values = [i for i in germline_data.values() if (i[2] / (i[3] / 1e6)) <=
 germline_nci = np.array([nci_dict[i] for i in germline_data if (germline_data[i][2] / (germline_data[i][3] / 1e6)) <= 40])
 class_counts = dict(zip(*np.unique(germline_nci, return_counts=True)))
 germline_mask = [class_counts[i] >= 50 for i in germline_nci]
-germline_values = [i for i in germline_data.values() if (i[2] / (i[3] / 1e6)) <= 40]
 
 for index, filters in enumerate(['loose', 'moderate', 'strict']):
     tumor_only_values = [germline_data[i][0][index] for i in germline_data if (germline_data[i][2] / (germline_data[i][3] / 1e6)) <= 40]

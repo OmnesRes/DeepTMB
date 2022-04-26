@@ -55,7 +55,7 @@ genie = pd.read_csv(cwd / 'files' / 'genomic_information.txt', sep='\t', low_mem
 panels = genie['SEQ_ASSAY_ID'].unique()
 panel_prs = {panel: pr.PyRanges(genie.loc[genie['SEQ_ASSAY_ID'] == panel][['Chromosome', 'Start_Position', 'End_Position']].rename(columns={'Start_Position': 'Start', 'End_Position': 'End'})) for panel in panels}
 
-gff = pd.read_csv('/home/janaya2/Desktop/ATGC2/files/Homo_sapiens.GRCh37.87.gff3',
+gff = pd.read_csv(cwd / 'files' / 'Homo_sapiens.GRCh37.87.gff3',
                   sep='\t',
                   names=['chr', 'unknown', 'gene_part', 'start', 'end', 'unknown2', 'strand', 'unknown3', 'gene_info'],
                   usecols=['chr', 'gene_part', 'start', 'end', 'gene_info'],

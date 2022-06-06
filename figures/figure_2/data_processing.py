@@ -33,7 +33,8 @@ sample_to_id = {}
 for i in metadata:
     sample_to_id[i['associated_entities'][0]['entity_submitter_id']] = i['associated_entities'][0]['entity_id']
 
-cmd = ['ls', cwd / 'files' / 'beds']
+# cmd = ['ls', cwd / 'files' / 'beds']
+cmd = ['ls', '/home/janaya2/Desktop/tmb_paper/files/coverage_beds/broad/']
 
 p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 files = [str(i, 'utf-8') for i in p.communicate()[0].split() if '.bed' in str(i)[-5:]]
@@ -52,7 +53,7 @@ chromosomes = list(map(lambda x: str(x), list(range(1, 23)) + ['X', 'Y']))
 
 ##10.1 synapse https://www.synapse.org/#!Synapse:syn25895958
 genie = pd.read_csv(cwd / 'files' / 'genomic_information.txt', sep='\t', low_memory=False)
-panel_pr = pr.PyRanges(genie.loc[genie['SEQ_ASSAY_ID'] == 'MSK-IMPACT468'][['Chromosome', 'Start_Position', 'End_Position']].rename(columns={'Start_Position': 'Start', 'End_Position': 'End'}))
+panel_pr = pr.PyRanges(genie.loc[genie['SEQ_ASSAY_ID'] == 'DUKE-F1-DX1'][['Chromosome', 'Start_Position', 'End_Position']].rename(columns={'Start_Position': 'Start', 'End_Position': 'End'}))
 
 gff = pd.read_csv('/home/janaya2/Desktop/ATGC2/files/Homo_sapiens.GRCh37.87.gff3',
                   sep='\t',
@@ -76,7 +77,8 @@ def get_overlap(tumor):
         return None
     file = tumor_to_bed[tumor]
     try:
-        bed_df = pd.read_csv(cwd / 'files' / 'beds' / file, names=['Chromosome', 'Start', 'End'], low_memory=False, sep='\t')
+        # bed_df = pd.read_csv(cwd / 'files' / 'beds' / file, names=['Chromosome', 'Start', 'End'], low_memory=False, sep='\t')
+        bed_df = pd.read_csv(pathlib.Path('/home/janaya2/Desktop/tmb_paper/files/coverage_beds/broad/') / file, names=['Chromosome', 'Start', 'End'], low_memory=False, sep='\t')
     except:
         return None
     bed_df = bed_df.loc[bed_df['Chromosome'].isin(chromosomes)]
@@ -111,5 +113,5 @@ with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
     for tumor, result in tqdm(zip(tumor_to_bed.keys(), executor.map(get_overlap, tumor_to_bed.keys()))):
         data[tumor] = result
 
-with open(cwd / 'figures' / 'figure_3' / 'data' / 'data.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'figure_2' / 'data' / 'data.pkl', 'wb') as f:
     pickle.dump(data, f)

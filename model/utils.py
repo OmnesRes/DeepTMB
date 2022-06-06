@@ -2,6 +2,24 @@ import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import StratifiedKFold
 
+
+def rescale_batch_weights(X, y, w):
+    return X, y, (w / tf.reduce_sum(w)) * tf.cast(tf.shape(w)[0], tf.float32)
+
+def log_prob_loss(y_true, tfpl_pred):
+    return -tfpl_pred.log_prob(y_true)
+
+class LogTransform:
+    def __init__(self, bias, min_x=0):
+        self.bias, self.min_x = bias, min_x
+
+    def trf(self, x):
+        return np.log2(x + self.bias) - np.log2(self.min_x + self.bias)
+
+    def inv(self, x):
+        return (2 ** (x + np.log2(self.min_x + self.bias))) - self.bias
+
+
 class Apply:
 
     class StratifiedMinibatch:
@@ -83,9 +101,12 @@ class Map:
             choice = np.random.choice(np.arange(self.data.shape[-1]))
             return self.data[idx, choice][:, np.newaxis]
 
+
     class PassThrough(LoadBatch):
         def __init__(self, data):
             self.data = data
 
         def loader(self, idx):
             return self.data[idx]
+
+

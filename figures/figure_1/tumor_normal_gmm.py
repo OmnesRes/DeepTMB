@@ -1,14 +1,9 @@
 import numpy as np
-import pickle
-import pandas as pd
 import tensorflow as tf
-# import tensorflow_probability as tfp
-from model.KerasUtils import rescale_batch_weights, log_prob_loss, DynamicClip
 from model.model import Encoders, NN
 from model import utils
 import pickle
 import pylab as plt
-from sklearn.metrics import r2_score
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -73,7 +68,7 @@ W_loader = utils.Map.PassThrough(y_weights)
 mixture_count_encoder = Encoders.Encoder(shape=(1,), layers=(128,))
 mixture_net = NN(encoders=[mixture_count_encoder.model], layers=(64, 32), mode='mixture')
 
-mixture_net.model.compile(loss=log_prob_loss,
+mixture_net.model.compile(loss=utils.log_prob_loss,
                   optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
 
 fcn_count_encoder = Encoders.Encoder(shape=(1,), layers=(128,))
@@ -93,7 +88,7 @@ ds_train_mixture = ds_train.map(lambda x: ((
                                     ),
                                     W_loader(x)
                                    )
-                        ).map(rescale_batch_weights)
+                        ).map(utils.rescale_batch_weights)
 
 mixture_net.model.fit(ds_train_mixture,
               steps_per_epoch=10,
@@ -108,7 +103,7 @@ ds_train_fcn = ds_train.map(lambda x: ((
                                     ),
                                     W_loader(x)
                                    )
-                        ).map(rescale_batch_weights)
+                        ).map(utils.rescale_batch_weights)
 
 fcn_net.model.fit(ds_train_fcn,
               steps_per_epoch=10,

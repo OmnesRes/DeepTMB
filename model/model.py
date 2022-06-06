@@ -2,6 +2,23 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import numpy as np
 
+class Embed(tf.keras.layers.Layer):
+    def __init__(self, embedding_dimension=None, input_dimension=None, trainable=False, regularization=0):
+        super(Embed, self).__init__()
+        self.input_dimension = input_dimension
+        self.embedding_dimension = embedding_dimension
+        self.trainable = trainable
+        self.regularization = regularization
+
+    def build(self, input_shape):
+        if self.input_dimension:
+            self.embedding_matrix = self.add_weight(shape=[self.input_dimension, self.embedding_dimension], initializer="uniform", trainable=self.trainable, dtype=tf.float32, regularizer=tf.keras.regularizers.l2(self.regularization))
+        else:
+            self.embedding_matrix = self.add_weight(shape=[self.embedding_dimension, self.embedding_dimension], initializer=tf.keras.initializers.identity(), trainable=self.trainable, dtype=tf.float32)
+
+    def call(self, inputs, **kwargs):
+        return tf.gather(tf.concat([tf.zeros([1, self.embedding_dimension]), self.embedding_matrix], axis=0), inputs, axis=0)
+
 class Encoders:
     class Encoder:
         def __init__(self, shape=None, layers=(16, 4)):
@@ -17,8 +34,27 @@ class Encoders:
                 hidden.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.softplus)(hidden[-1]))
             self.model = tf.keras.Model(inputs=[input], outputs=[hidden[-1]])
 
+    class Embedder:
+        def __init__(self, shape=None, dim=None, input_dim=None, layers=(16, 4)):
+            self.shape = shape
+            self.input_dim = input_dim
+            self.dim = dim
+            self.layers = layers
+            self.model = None
+            self.build()
+
+        def build(self, *args, **kwarg):
+            input = tf.keras.layers.Input(self.shape, dtype=tf.int32)
+            hidden = [Embed(input_dimension=self.input_dim, embedding_dimension=self.dim)(input)]
+            for i in self.layers:
+                hidden.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.softplus)(hidden[-1]))
+
+            self.model = tf.keras.Model(inputs=[input], outputs=[hidden[-1]])
+
+
+
 class NN:
-    def __init__(self, encoders=[], layers=(16, 8, 4), default_activation=tf.keras.activations.softplus, mode='aleatoric'):
+    def __init__(self, encoders=[], layers=(16, 8, 4), default_activation=tf.keras.activations.softplus, mode='johnson'):
         self.encoders = encoders
         self.layers = layers
         self.mode = mode
@@ -32,24 +68,49 @@ class NN:
         fused = [tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=-1))(encodings)]
         for i in self.layers:
             fused.append(tf.keras.layers.Dense(units=i, activation=self.default_activation)(fused[-1]))
-        t = tf.keras.layers.Dense(units=2, activation=None)(fused[-1])
-        if self.mode == 'aleatoric':
-            self.model = tf.keras.Model(inputs=inputs, outputs=[t])
-        else:
-            self.model = tf.keras.Model(inputs=inputs, outputs=[t[:, 0]])
+        if self.mode == 'johnson':
+            fused.append([tf.keras.layers.Dense(units=1, activation=None)(fused[-1]),
+                          tf.keras.layers.Dense(units=1, activation=tf.keras.activations.softplus)(fused[-1]),
+                          tf.keras.layers.Dense(units=1, activation=None)(fused[-1]),
+                          tf.keras.layers.Dense(units=1, activation=tf.keras.activations.softplus)(fused[-1])])
+            t = tfp.layers.DistributionLambda(lambda t: tfp.distributions.JohnsonSU(skewness=t[0][:, 0], tailweight=t[1][:, 0], loc=t[2][:, 0], scale=t[3][:, 0]))(fused[-1])
+        elif self.mode == 'mixture':
+            fused.append([tf.keras.layers.Dense(units=3, activation=tf.keras.activations.softmax)(fused[-1]),
+                  tf.keras.layers.Dense(units=3, activation=None)(fused[-1]),
+                  tf.keras.layers.Dense(units=3, activation=tf.keras.activations.softplus)(fused[-1])])
+            t = tfp.layers.DistributionLambda(lambda ts: tfp.distributions.MixtureSameFamily(mixture_distribution=tfp.distributions.Categorical(probs=ts[0]),
+                                                                                              components_distribution=tfp.distributions.LogNormal(loc=ts[1], scale=ts[2])))(fused[-1])
+        elif self.mode == 'normal':
+            fused.append([tf.keras.layers.Dense(units=1, activation=None)(fused[-1]),
+                  tf.keras.layers.Dense(units=1, activation=tf.keras.activations.softplus)(fused[-1])])
+            t = tfp.layers.DistributionLambda(lambda t: tfp.distributions.Normal(loc=t[0][:, 0], scale=t[1][:, 0]))(fused[-1])
 
-class Losses:
-    class LogNormal(tf.keras.losses.Loss):
-        def __init__(self, name):
-            super(Losses.LogNormal, self).__init__(name=name)
-        def call(self, y_true, y_pred):
-            mu = y_pred[:, 0]
-            std = tf.math.exp(y_pred[:, 1])
-            cond_dist = tfp.distributions.LogNormal(loc=mu, scale=std)
-            return -cond_dist.log_prob(y_true[:, 0])
-        def __call__(self, y_true, y_pred, sample_weight=None):
-            loss = self.call(y_true, y_pred)
-            if sample_weight is not None:
-                return tf.reduce_sum(loss * sample_weight, axis=0) / tf.reduce_sum(sample_weight, axis=0)
-            else:
-                return tf.reduce_mean(loss, axis=0)
+        elif self.mode == 'tfp_linear_regresion':
+            fused.append([tf.keras.layers.Dense(units=1, activation=None)(fused[-1]),
+                  tfp.layers.VariableLayer(shape=(1, ), activation=tf.keras.activations.exponential)(fused[-1])])
+            t = tfp.layers.DistributionLambda(lambda t: tfp.distributions.Normal(loc=t[0][:, 0], scale=t[1]))(fused[-1])
+
+        else:
+            t = tf.keras.layers.Dense(units=1, activation=None)(fused[-1])
+        self.model = tf.keras.Model(inputs=inputs, outputs=[t])
+#
+# class Losses:
+#     class JohnsonSU(tf.keras.losses.Loss):
+#         def __init__(self, name):
+#             super(Losses.JohnsonSU, self).__init__(name=name)
+#         def call(self, y_true, y_pred):
+#             skewness = y_pred[:, 0]
+#             tailweight = tf.math.exp(y_pred[:, 1])
+#             loc = y_pred[:, 2]
+#             scale = tf.math.exp(y_pred[:, 3])
+#             cond_dist = tfp.distributions.JohnsonSU(skewness=skewness, tailweight=tailweight, loc=loc, scale=scale)
+#             return -cond_dist.log_prob(y_true[:, 0])
+#         def __call__(self, y_true, y_pred, sample_weight=None):
+#             loss = self.call(y_true, y_pred)
+#             loss = tf.minimum(tfp.stats.percentile(loss, 95), loss)
+#             if sample_weight is not None:
+#                 return tf.reduce_sum(loss * sample_weight, axis=0) / tf.reduce_sum(sample_weight, axis=0)
+#             else:
+#                 return tf.reduce_mean(loss, axis=0)
+
+##lognormal aleatoric loss (tf.math.square(tf.math.log(y_true[:, 0]) - y_pred[:, 0]) / (2 * y_pred[:, 1])) + tf.math.log(tf.math.sqrt(2 * tf.constant(np.pi) * y_pred[:, 1]) * y_true[:, 0])

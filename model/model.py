@@ -93,24 +93,3 @@ class NN:
         else:
             t = tf.keras.layers.Dense(units=1, activation=None)(fused[-1])
         self.model = tf.keras.Model(inputs=inputs, outputs=[t])
-#
-# class Losses:
-#     class JohnsonSU(tf.keras.losses.Loss):
-#         def __init__(self, name):
-#             super(Losses.JohnsonSU, self).__init__(name=name)
-#         def call(self, y_true, y_pred):
-#             skewness = y_pred[:, 0]
-#             tailweight = tf.math.exp(y_pred[:, 1])
-#             loc = y_pred[:, 2]
-#             scale = tf.math.exp(y_pred[:, 3])
-#             cond_dist = tfp.distributions.JohnsonSU(skewness=skewness, tailweight=tailweight, loc=loc, scale=scale)
-#             return -cond_dist.log_prob(y_true[:, 0])
-#         def __call__(self, y_true, y_pred, sample_weight=None):
-#             loss = self.call(y_true, y_pred)
-#             loss = tf.minimum(tfp.stats.percentile(loss, 95), loss)
-#             if sample_weight is not None:
-#                 return tf.reduce_sum(loss * sample_weight, axis=0) / tf.reduce_sum(sample_weight, axis=0)
-#             else:
-#                 return tf.reduce_mean(loss, axis=0)
-
-##lognormal aleatoric loss (tf.math.square(tf.math.log(y_true[:, 0]) - y_pred[:, 0]) / (2 * y_pred[:, 1])) + tf.math.log(tf.math.sqrt(2 * tf.constant(np.pi) * y_pred[:, 1]) * y_true[:, 0])

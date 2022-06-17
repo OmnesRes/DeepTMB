@@ -13,13 +13,16 @@ else:
     sys.path.append(str(cwd))
 
 file_path = cwd / 'files'
-sample_table = pickle.load(open(cwd / 'files' / 'tcga_public_sample_table.pkl', 'rb'))
-nci_dict = {i[:12]: j for i, j in zip(sample_table['Tumor_Sample_Barcode'].values, sample_table['NCIt_tmb_label'].values) if j}
-
+germline_samples = pickle.load(open(cwd / 'files' / 'germline' / 'data' / 'germline_samples.pkl', 'rb'))
+[germline_samples.pop(i) for i in list(germline_samples.keys()) if germline_samples[i] < 400]
 
 loose_tumor_only_maf = pickle.load(open(file_path / 'germline' / 'data' / 'tumor_only_maf_filtered_loose.pkl', 'rb'))
+loose_tumor_only_maf = loose_tumor_only_maf.loc[loose_tumor_only_maf['bcr_patient_barcode'].isin(germline_samples)]
 moderate_tumor_only_maf = pickle.load(open(file_path / 'germline' / 'data' / 'tumor_only_maf_filtered_moderate.pkl', 'rb'))
+moderate_tumor_only_maf = moderate_tumor_only_maf.loc[moderate_tumor_only_maf['bcr_patient_barcode'].isin(germline_samples)]
 strict_tumor_only_maf = pickle.load(open(file_path / 'germline' / 'data' / 'tumor_only_maf_filtered_strict.pkl', 'rb'))
+strict_tumor_only_maf = strict_tumor_only_maf.loc[strict_tumor_only_maf['bcr_patient_barcode'].isin(germline_samples)]
+
 ancestry = pickle.load(open(file_path / 'ethnicity.pkl', 'rb'))
 
 loose_germline_counts = loose_tumor_only_maf.loc[loose_tumor_only_maf['LINEAGE'] == 'germline']['bcr_patient_barcode'].value_counts().to_frame().reset_index()
@@ -37,7 +40,6 @@ strict_copy = strict_germline_counts.copy()
 strict_copy['ancestry'] = 'All'
 
 counts = pd.concat([loose_germline_counts, strict_germline_counts, loose_copy, strict_copy], ignore_index=True)
-counts = counts.loc[counts['index'].isin(nci_dict)]
 ancestry_counts = counts['ancestry'].value_counts().to_dict()
 ancestry_counts = {i: int(ancestry_counts[i]/2) for i in ancestry_counts}
 
@@ -73,6 +75,7 @@ ax.spines['right'].set_visible(False)
 ax.spines['top'].set_visible(False)
 ax.spines['bottom'].set_visible(False)
 ax.spines['left'].set_position(('outward', -15))
+ax.spines['left'].set_bounds(0, 100)
 plt.legend(frameon=False, loc=(.265, 1), ncol=2, title='Germline Filter Criteria', title_fontproperties={'size': 12})
 
 plt.savefig(cwd / 'figures' / 'figure_2' / 'results' / 'violin_plots.pdf')

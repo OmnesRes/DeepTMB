@@ -15,8 +15,8 @@ else:
     sys.path.append(str(cwd))
 
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[3], True)
-tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[2], True)
+tf.config.experimental.set_visible_devices(physical_devices[2], 'GPU')
 
 data = pickle.load(open(cwd / 'tables' / 'table_1' / 'DUKE-F1-DX1' / 'tumor_only_strict' / 'data' / 'data.pkl', 'rb'))
 ancestry = pickle.load(open(cwd / 'files' / 'ethnicity.pkl', 'rb'))
@@ -27,17 +27,18 @@ germline_samples = pickle.load(open(cwd / 'files' / 'germline' / 'data' / 'germl
 [data.pop(i) for i in list(data.keys()) if i[:12] not in germline_samples]
 
 cutoff = np.percentile([i[-1] / (i[1] / 1e6) for i in data.values()], 98)
-values = [i for i in data.values() if (i[-1] / (i[1] / 1e6)) < cutoff]
-anc = np.array([ancestry.get(i[:12], 'OA') for i in data if (data[i][-1] / (data[i][1] / 1e6)) < cutoff])
+mask = [(i[-1] / (i[1] / 1e6)) < cutoff for i in data.values()]
+anc = np.array([ancestry.get(i[:12], 'OA') for i in data])
 anc_encoding = {'AA': 1, 'EA': 2, 'EAA': 3, 'NA': 4, 'OA': 0}
 anc = np.array([anc_encoding[i] for i in anc])
+anc = anc[mask]
 
-X = np.array([i[-1] / (i[1] / 1e6) for i in values])
-Y = np.array([i[2] / (i[3] / 1e6) for i in values])
+X = np.array([i[-1] / (i[1] / 1e6) for i in data.values()])
+Y = np.array([i[2] / (i[3] / 1e6) for i in data.values()])
 
 t = utils.LogTransform(bias=4, min_x=0)
-X = t.trf(X[:, np.newaxis])
-Y = t.trf(Y)
+X = t.trf(X[mask, np.newaxis])
+Y = t.trf(Y[mask])
 X_loader = utils.Map.PassThrough(X)
 Y_loader = utils.Map.PassThrough(Y)
 
@@ -76,7 +77,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
 
 
 with open(cwd / 'tables' / 'table_1' / 'DUKE-F1-DX1' / 'tumor_only_strict' / 'results' / 'linear_prob_nonsyn_predictions.pkl', 'wb') as f:
-    pickle.dump([predictions, test_idx, values, losses], f)
+    pickle.dump([predictions, test_idx, [X, Y], losses], f)
 
 ##check each fold trained
 for fold, preds in zip(test_idx, predictions):

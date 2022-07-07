@@ -3,7 +3,6 @@ import tensorflow as tf
 from model.model import Encoders, NN
 from model import utils
 import pickle
-from sklearn.model_selection import StratifiedKFold
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -27,37 +26,36 @@ germline_samples = pickle.load(open(cwd / 'files' / 'germline' / 'data' / 'germl
 [data.pop(i) for i in list(data.keys()) if i[:12] not in germline_samples]
 
 cutoff = np.percentile([i[-1] / (i[1] / 1e6) for i in data.values()], 98)
-values = [i for i in data.values() if (i[-1] / (i[1] / 1e6)) < cutoff]
-anc = np.array([ancestry.get(i[:12], 'OA') for i in data if (data[i][-1] / (data[i][1] / 1e6)) < cutoff])
+mask = [(i[-1] / (i[1] / 1e6)) < cutoff for i in data.values()]
+anc = np.array([ancestry.get(i[:12], 'OA') for i in data])
 anc_encoding = {'AA': 1, 'EA': 2, 'EAA': 3, 'NA': 4, 'OA': 0}
 anc = np.array([anc_encoding[i] for i in anc])
+anc = anc[mask]
 
-X = np.array([i[-1] / (i[1] / 1e6) for i in values])
-Y = np.array([i[2] / (i[3] / 1e6) for i in values])
+X = np.array([i[0] / (i[1] / 1e6) for i in data.values()])
+Y = np.array([i[2] / (i[3] / 1e6) for i in data.values()])
 
 t = utils.LogTransform(bias=4, min_x=0)
-X = t.trf(X[:, np.newaxis])
-Y = t.trf(Y)
-X_loader = utils.Map.PassThrough(X)
-Y_loader = utils.Map.PassThrough(Y)
+X = t.trf(X[mask, np.newaxis])
+Y = t.trf(Y[mask])
 
-count_encoder = Encoders.Encoder(shape=(1,), layers=(128,))
-net = NN(encoders=[count_encoder.model], layers=(64, 32), mode='fcn')
-net.model.compile(loss='mse',
-                  optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
+for ancestry in range(1, 6):
+    if ancestry == 5:
+        anc_mask = anc < 100
+    else:
+        anc_mask = anc == ancestry
+    X_loader = utils.Map.PassThrough(X[anc_mask])
+    Y_loader = utils.Map.PassThrough(Y[anc_mask])
 
-weights = net.model.get_weights()
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.0001, patience=30, mode='min', restore_best_weights=True)]
+    count_encoder = Encoders.Encoder(shape=(1,), layers=(128,))
+    net = NN(encoders=[count_encoder.model], layers=(64, 32), mode='mixture')
+    net.model.compile(loss=utils.log_prob_loss,
+                      optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
 
-predictions = []
-losses = []
-test_idx = []
-y_pred = np.linspace(np.min(Y), np.max(Y + .5), 1000)
-for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(anc, anc):
-    net.model.set_weights(weights)
-    test_idx.append(idx_test)
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.0001, patience=30, mode='min', restore_best_weights=True)]
+    idx_train = np.arange(len(X[anc_mask]))
     ds_train = tf.data.Dataset.from_tensor_slices((idx_train,))
-    ds_train = ds_train.shuffle(buffer_size=len(anc), reshuffle_each_iteration=True).repeat().batch(batch_size=int(len(idx_train) * .75), drop_remainder=True)
+    ds_train = ds_train.shuffle(buffer_size=len(idx_train), reshuffle_each_iteration=True).repeat().batch(batch_size=int(len(idx_train) * .75), drop_remainder=True)
     ds_train = ds_train.map(lambda x: ((
                                         X_loader(x),
                                         ),
@@ -71,14 +69,9 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
                   epochs=10000,
                   callbacks=callbacks
                   )
-    predictions.append(net.model.predict(X[idx_test]))
-    losses.append(net.model.evaluate(X[idx_test], Y[idx_test]))
+    y_pred = np.linspace(0, np.max(Y + 2), 1000)
+    predictions = y_pred[np.argmin(np.diff((np.exp(net.model(X[anc_mask]).log_cdf(y_pred[:, np.newaxis]).numpy()) < 0.5).astype(int), axis=0), axis=0)]
+    losses = net.model.evaluate(X[anc_mask], Y[anc_mask])
 
-
-with open(cwd / 'tables' / 'table_1' / 'DUKE-F1-DX1' / 'tumor_only_strict' / 'results' / 'gls_mse_nonsyn_predictions.pkl', 'wb') as f:
-    pickle.dump([predictions, test_idx, values, losses], f)
-
-##check each fold trained
-for fold, preds in zip(test_idx, predictions):
-    print(np.mean((t.inv(preds[:, 0]) - t.inv(Y[fold])) ** 2)**.5)
-
+    with open(cwd / 'tables' / 'supp_tables_1-5' / 'tumor_only_strict' / 'results' / ('gmm_syn_predictions_' + str(ancestry) + '.pkl'), 'wb') as f:
+        pickle.dump([predictions, [X[anc_mask], Y[anc_mask]], losses], f)

@@ -41,8 +41,8 @@ Y = t.trf(Y)
 X_loader = utils.Map.PassThrough(X)
 Y_loader = utils.Map.PassThrough(Y)
 
-count_encoder = Encoders.Encoder(shape=(1,), layers=())
-net = NN(encoders=[count_encoder.model], layers=(), mode='fcn')
+count_encoder = Encoders.Encoder(shape=(1,), layers=(128,))
+net = NN(encoders=[count_encoder.model], layers=(64, 32), mode='fcn')
 net.model.compile(loss='mse',
                   optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
 
@@ -75,7 +75,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     losses.append(net.model.evaluate(X[idx_test], Y[idx_test]))
 
 
-with open(cwd / 'tables' / 'table_1' / 'DUKE-F1-DX1' / 'tumor_normal' / 'results' / 'linear_mse_nonsyn_predictions.pkl', 'wb') as f:
+with open(cwd / 'tables' / 'table_1' / 'DUKE-F1-DX1' / 'tumor_normal' / 'results' / 'gls_mse_nonsyn_predictions.pkl', 'wb') as f:
     pickle.dump([predictions, test_idx, values, losses], f)
 
 ##check each fold trained

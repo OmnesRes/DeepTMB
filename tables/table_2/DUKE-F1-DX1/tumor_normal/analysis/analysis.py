@@ -2,7 +2,7 @@ import numpy as np
 import pickle
 import pathlib
 from model import utils
-from sklearn.metrics import r2_score
+from scipy.stats import spearmanr
 path = pathlib.Path.cwd()
 if path.stem == 'DeepTMB':
     cwd = path
@@ -21,23 +21,26 @@ ancestry = pickle.load(open(cwd / 'files' / 'ethnicity.pkl', 'rb'))
 print('without_ancestry')
 run_predictions, test_idx, values, losses = pickle.load(open(cwd / 'tables' / 'table_2' / 'DUKE-F1-DX1' / 'tumor_normal' / 'results' / 'without_ancestry.pkl', 'rb'))
 
-cutoff = np.percentile([(i[0] - i[4]) / (i[1] / 1e6) for i in data.values()], 98)
-anc = np.array([ancestry.get(i[:12], 'OA') for i in data if ((data[i][0] - data[i][4]) / (data[i][1] / 1e6)) < cutoff])
+non_syn = ['Missense_Mutation', 'Nonsense_Mutation', 'Frame_Shift_Del', 'Frame_Shift_Ins', 'In_Frame_Del', 'In_Frame_Ins', 'Nonstop_Mutation']
+non_syn_data = {i: sum([data[i][5].to_dict()[j] for j in data[i][5].index if j in non_syn]) for i in data}
+cutoff = np.percentile(list(non_syn_data.values()), 98)
+anc = np.array([ancestry.get(i[:12], 'OA') for i in data])
 anc_encoding = {'AA': 1, 'EA': 2, 'EAA': 3, 'NA': 4, 'OA': 0}
 anc = np.array([anc_encoding[i] for i in anc])
-values = [i for i in data.values() if ((i[0] - i[4]) / (i[1] / 1e6)) < cutoff]
-Y = np.array([i[2] / (i[3] / 1e6) for i in values])
+mask = list(non_syn_data.values()) < cutoff
+anc = anc[mask]
+p_TMB = np.array([sum([data[i][5].to_dict()[j] for j in data[i][5].index if j in non_syn]) / (data[i][1] / 1e6) for i in data])
+p_TMB = p_TMB[mask]
+Y = np.array([i[2] / (i[3] / 1e6) for i in data.values()])
+Y = Y[mask]
+
 
 for i in range(1, 5):
     print(i)
     mask = anc[np.concatenate(test_idx)] == i
-    print(round(np.mean(-np.concatenate(losses)[mask]), 2))
-    print(round(np.sqrt(np.mean((t.inv(np.concatenate(run_predictions)[mask]) - Y[np.concatenate(test_idx)][mask])**2)), 2))
-    print(round(r2_score(Y[np.concatenate(test_idx)][mask], t.inv(np.concatenate(run_predictions)[mask])), 2))
-    print(round(sum((t.inv(np.concatenate(run_predictions)[mask]) >= 10) & (Y[np.concatenate(test_idx)][mask] >= 10)) / sum(Y[np.concatenate(test_idx)][mask] >= 10), 2))
-    print(round(sum((t.inv(np.concatenate(run_predictions)[mask]) >= 10) & (Y[np.concatenate(test_idx)][mask] >= 10))
-                / (sum((t.inv(np.concatenate(run_predictions)[mask]) >= 10) & (Y[np.concatenate(test_idx)][mask] >= 10)) + sum((t.inv(np.concatenate(run_predictions)[mask]) >= 10) & (Y[np.concatenate(test_idx)[mask]] < 10))), 2))
-
+    tmb_high = p_TMB[np.concatenate(test_idx)][mask] >= 5
+    print(round(np.mean(np.abs(Y[np.concatenate(test_idx)][mask][tmb_high] - t.inv(np.concatenate(run_predictions)[mask][tmb_high]))), 2))
+    print(round(spearmanr(t.inv(np.concatenate(run_predictions)[mask][tmb_high]), Y[np.concatenate(test_idx)][mask][tmb_high])[0], 2))
 
 
 print('with ancestry')
@@ -46,11 +49,8 @@ run_predictions, test_idx, values, losses = pickle.load(open(cwd / 'tables' / 't
 for i in range(1, 5):
     print(i)
     mask = anc[np.concatenate(test_idx)] == i
-    print(round(np.mean(-np.concatenate(losses)[mask]), 2))
-    print(round(np.sqrt(np.mean((t.inv(np.concatenate(run_predictions)[mask]) - Y[np.concatenate(test_idx)][mask])**2)), 2))
-    print(round(r2_score(Y[np.concatenate(test_idx)][mask], t.inv(np.concatenate(run_predictions)[mask])), 2))
-    print(round(sum((t.inv(np.concatenate(run_predictions)[mask]) >= 10) & (Y[np.concatenate(test_idx)][mask] >= 10)) / sum(Y[np.concatenate(test_idx)][mask] >= 10), 2))
-    print(round(sum((t.inv(np.concatenate(run_predictions)[mask]) >= 10) & (Y[np.concatenate(test_idx)][mask] >= 10))
-                / (sum((t.inv(np.concatenate(run_predictions)[mask]) >= 10) & (Y[np.concatenate(test_idx)][mask] >= 10)) + sum((t.inv(np.concatenate(run_predictions)[mask]) >= 10) & (Y[np.concatenate(test_idx)[mask]] < 10))), 2))
+    tmb_high = p_TMB[np.concatenate(test_idx)][mask] >= 5
+    print(round(np.mean(np.abs(Y[np.concatenate(test_idx)][mask][tmb_high] - t.inv(np.concatenate(run_predictions)[mask][tmb_high]))), 2))
+    print(round(spearmanr(t.inv(np.concatenate(run_predictions)[mask][tmb_high]), Y[np.concatenate(test_idx)][mask][tmb_high])[0], 2))
 
 

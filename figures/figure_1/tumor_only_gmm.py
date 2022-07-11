@@ -75,6 +75,7 @@ callbacks = [tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.001, p
 idx_train = np.arange(len(X))
 ds_train = tf.data.Dataset.from_tensor_slices((idx_train, ))
 ds_train = ds_train.shuffle(buffer_size=len(idx_train), reshuffle_each_iteration=True).repeat().batch(batch_size=int(len(idx_train) * .75), drop_remainder=True)
+
 ds_train = ds_train.map(lambda x: ((
                                     X_loader(x),
                                     ),

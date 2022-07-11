@@ -1,6 +1,5 @@
 import tensorflow as tf
 import tensorflow_probability as tfp
-import numpy as np
 
 class Embed(tf.keras.layers.Layer):
     def __init__(self, embedding_dimension=None, input_dimension=None, trainable=False, regularization=0):
@@ -66,7 +65,7 @@ class NN:
         inputs = [[tf.keras.layers.Input(shape=input_tensor.shape[1:], dtype=input_tensor.dtype) for input_tensor in encoder.inputs] for encoder in self.encoders]
         encodings = [encoder(input) for input, encoder in zip(inputs, self.encoders)]
         fused = [tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=-1))(encodings)]
-        for i in self.layers:
+        for index, i in enumerate(self.layers):
             fused.append(tf.keras.layers.Dense(units=i, activation=self.default_activation)(fused[-1]))
         if self.mode == 'johnson':
             fused.append([tf.keras.layers.Dense(units=1, activation=None)(fused[-1]),

@@ -80,5 +80,5 @@ for ancestry in range(1, 5):
     preds.append(y_pred[np.argmin(np.diff((np.exp(net.model(x_pred).log_cdf(y_pred[:, np.newaxis]).numpy()) < 0.5).astype(int), axis=0), axis=0)])
 
 
-with open(cwd / 'figures' / 'figure_2' / 'results' / 'strict_preds.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'supplemental_figures' / 'figure_1' / 'results' / 'strict_preds.pkl', 'wb') as f:
     pickle.dump([x_pred, preds], f)

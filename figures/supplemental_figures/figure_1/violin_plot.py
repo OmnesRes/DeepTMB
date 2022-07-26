@@ -78,6 +78,6 @@ ax.spines['left'].set_position(('outward', -15))
 ax.spines['left'].set_bounds(0, 100)
 plt.legend(frameon=False, loc=(.265, 1), ncol=2, title='Germline Filter Criteria', title_fontproperties={'size': 12})
 
-plt.savefig(cwd / 'figures' / 'figure_2' / 'results' / 'violin_plots.pdf')
+plt.savefig(cwd / 'figures' / 'supplemental_figures' / 'figure_1' / 'results' / 'violin_plots.pdf')
 
 

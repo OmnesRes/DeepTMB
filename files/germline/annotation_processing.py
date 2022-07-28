@@ -34,10 +34,13 @@ tcga_maf = pd.read_csv(file_path / 'mc3.v0.2.8.PUBLIC.maf', sep='\t', usecols=us
 
 tumor_to_normal = {}
 
-for i in tcga_maf.itertuples():
+grouped = tcga_maf[['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']].groupby(['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']).size().reset_index()
+
+for i in grouped.itertuples():
     tumor_to_normal[i.Tumor_Sample_Barcode] = tumor_to_normal.get(i.Tumor_Sample_Barcode, []) + [i.Matched_Norm_Sample_Barcode]
 
 del tcga_maf
+
 for i in tumor_to_normal:
     tumor_to_normal[i] = set(tumor_to_normal[i])
 

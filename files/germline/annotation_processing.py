@@ -28,21 +28,13 @@ annot, maf = pickle.load(open(file_path / 'germline' / 'data' / 'tcga.genie.comb
 
 maf['bcr_patient_barcode'] = maf['SAMPLE'].apply(lambda x: x[:12])
 
-usecols = ['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']
+usecols = ['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode', 'FILTER']
+tcga_maf = pd.read_csv('/home/janaya2/Desktop/ATGC2/files/mc3.v0.2.8.PUBLIC.maf', sep='\t', usecols=usecols, low_memory=False).drop_duplicates()
+tcga_maf = tcga_maf.loc[(tcga_maf['FILTER'] == 'PASS') | (tcga_maf['FILTER'] == 'wga') | (tcga_maf['FILTER'] == 'native_wga_mix')]
 
-tcga_maf = pd.read_csv(file_path / 'mc3.v0.2.8.PUBLIC.maf', sep='\t', usecols=usecols, low_memory=False).drop_duplicates()
-
-tumor_to_normal = {}
-
-grouped = tcga_maf[['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']].groupby(['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']).size().reset_index()
-
-for i in grouped.itertuples():
-    tumor_to_normal[i.Tumor_Sample_Barcode] = tumor_to_normal.get(i.Tumor_Sample_Barcode, []) + [i.Matched_Norm_Sample_Barcode]
+tumor_to_normal = tcga_maf[['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']].groupby('Tumor_Sample_Barcode')['Matched_Norm_Sample_Barcode'].apply(lambda x: set(x.values)).to_dict()
 
 del tcga_maf
-
-for i in tumor_to_normal:
-    tumor_to_normal[i] = set(tumor_to_normal[i])
 
 ##gdc data portal metadata files for TCGA WXS bams.  multiple files because only 10k can be added to the cart at a time.
 with open(file_path / 'bams' / 'first_part.json', 'r') as f:

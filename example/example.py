@@ -1,24 +1,31 @@
-import numpy as np
-import tensorflow as tf
-from model.model import Encoders, NN
-from model import utils
-import pandas as pd
-
 import pathlib
+import sys
 path = pathlib.Path.cwd()
 if path.stem == 'DeepTMB':
     cwd = path
 else:
     cwd = list(path.parents)[::-1][path.parts.index('DeepTMB')]
-    import sys
     sys.path.append(str(cwd))
 
+##if running from command line won't import
+try:
+    from model import utils
+except:
+    path_root = pathlib.Path(__file__).parents[1]
+    sys.path.append(str(path_root))
+    from model import utils
+
+import numpy as np
+import tensorflow as tf
+from model.model import Encoders, NN
+import pandas as pd
+
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-1], True)
-tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-2], True)
+tf.config.experimental.set_visible_devices(physical_devices[-2], 'GPU')
 
 ##read data
-data = pd.read_csv(cwd / 'example' / 'example_training_data.txt', sep='\t')
+data = pd.read_csv(cwd / 'example' / 'example_training_data.txt', sep=',')
 
 ##create arrays
 X = data['panel_values'].values
@@ -63,10 +70,10 @@ net.model.fit(ds_train,
               callbacks=callbacks
               )
 
-##check the benefit of the fit
-
 ##define where to calculate probabilities
 y_pred = np.linspace(0, np.max(Y + .5), 1000)
+
+##check the benefit of the fit
 
 ##get median predictions
 medians = y_pred[np.argmin(np.diff((np.exp(net.model(X).log_cdf(y_pred[:, np.newaxis]).numpy()) < 0.5).astype(int), axis=0), axis=0)]
